@@ -68,7 +68,7 @@ output application/json
 		</ee:transform>
 	</flow>
 	<flow name="registered-covid-casesFlow1" doc:id="a940abdc-11e6-4bec-b99f-248236c0b6e2" >
-		<logger level="INFO" doc:name="Logger" doc:id="011a43b2-c145-466f-9e92-1e72a333275a" />
+		<logger level="INFO" doc:name="Logger" doc:id="011a43b2-c145-466f-9e92-1e72a333275a" message='"hiii"'/>
 		<db:select doc:name="Select case_id" doc:id="fe2b91a8-83a0-43c3-b692-70c05813e811" config-ref="Database_Config" >
 			<db:sql ><![CDATA[select max(case_id) as case_id from CVD_CASE_MASTER where email = :email]]></db:sql>
 			<db:input-parameters ><![CDATA[#[{
