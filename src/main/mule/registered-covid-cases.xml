@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="87713429-d11e-47ff-8e64-b22f97490d79" basePath="covid" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="4586221e-3450-445b-8050-1248af4a77da" >
+		<db:oracle-connection host="localhost" user="system" password="Shri@041" instance="xe" />
+	</db:config>
+	<flow name="registered-covid-casesFlow" doc:id="34008a7f-64d6-4ef6-92d1-3ecd2ee8efc1" >
+		<http:listener doc:name="Listener" doc:id="97bc7211-756c-4638-93d9-0815db052522" config-ref="HTTP_Listener_config" path="v1/cases"/>
+		<ee:transform doc:name="Transform Message" doc:id="576d34f6-b110-4a0a-89cb-0f9dcc24df0d" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="covidPayload" ><![CDATA[%dw 2.0
+output application/json
+var currentDate = now() as String {format: "YYYY-MM-dd"}
+---
+{
+    source: payload.source,
+    case_type: payload.caseType,
+    "first_name": payload.firstName,
+    "last_name": payload.lastName,
+    "phone": payload.phone,
+    "email":payload.email,
+    "date_of_birth": payload.dateOfBirth as String {format: "YYYY-MM-dd"},
+    "national_id": payload.nationalID,
+    "national_id_type": payload.nationalIDType,
+   
+        "street_address": payload.address.streetAddress,
+        "city": payload.address.city,
+        "state": upper(payload.address.state),
+        "postal": payload.address.postal,
+        "country": payload.address.country,
+        create_date:currentDate,
+        update_date:currentDate,
+        create_by: "UHIS",
+        update_by: "UHIS"
+        
+        
+    
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<db:stored-procedure doc:name="Stored procedure" doc:id="89faa9c9-8fcd-4d3b-977b-cac34c6b22f1" config-ref="Database_Config">
+			<db:sql ><![CDATA[{call insert_covid_master(:source, :case_type, :first_name, :last_name, :phone, :email, :date_of_birth, :national_id, :national_id_type, :street_address, :city, :state, :postal, :country, :create_date, :update_date, :create_by, :update_by)}]]></db:sql>
+			<db:input-parameters ><![CDATA[#[vars.covidPayload]]]></db:input-parameters>
+			<db:output-parameters >
+				<db:output-parameter key="case_id" type="INTEGER" />
+			</db:output-parameters>
+		</db:stored-procedure>
+		<ee:transform doc:name="Transform Message" doc:id="d4541512-2021-4f00-b347-614c5eac56bd" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	caseID: payload[0].CASE_ID as String
+}
+]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="registered-covid-casesFlow1" doc:id="a940abdc-11e6-4bec-b99f-248236c0b6e2" >
+		<logger level="INFO" doc:name="Logger" doc:id="011a43b2-c145-466f-9e92-1e72a333275a" />
+		<db:select doc:name="Select case_id" doc:id="fe2b91a8-83a0-43c3-b692-70c05813e811" config-ref="Database_Config" >
+			<db:sql ><![CDATA[select max(case_id) as case_id from CVD_CASE_MASTER where email = :email]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	email:vars.covidPayload.email
+}]]]></db:input-parameters>
+		</db:select>
+		<db:insert doc:name="Insert covid cases" doc:id="aa76178a-f993-4e8c-baea-2b5447a977c3" config-ref="Database_Config" >
+			<db:sql ><![CDATA[insert into CVD_CASE_MASTER(source, case_type, first_name, last_name, phone, email, date_of_birth, national_id, national_id_type, street_address, city, state, postal, country, create_date, update_date, create_by, update_by) values(:source, :case_type, :first_name, :last_name, :phone, :email, TO_DATE(:date_of_birth,'YYYY-MM-DD'), :national_id, :national_id_type, :street_address, :city, :state, :postal, :country, TO_DATE(:create_date, 'YYYY-MM-DD'), TO_DATE(:update_date, 'YYYY-MM-DD'), :create_by, :update_by)]]></db:sql>
+			<db:input-parameters ><![CDATA[#[vars.covidPayload]]]></db:input-parameters>
+		</db:insert>
+	</flow>
+</mule>
